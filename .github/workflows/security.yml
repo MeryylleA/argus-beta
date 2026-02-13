@@ -39,23 +39,22 @@ jobs:
             echo "has_module=false" >> "$GITHUB_OUTPUT"
             echo "No go.mod found in repository root or argus/. Skipping Go security checks."
           fi
-      - name: Install security tools
-        if: ${{ steps.module-dir.outputs.has_module == 'true' }}
+      - name: Run security checks
+        shell: bash
+        env:
+          HAS_MODULE: ${{ steps.module-dir.outputs.has_module }}
+          MODULE_DIR: ${{ steps.module-dir.outputs.dir }}
         run: |
+          if [ "$HAS_MODULE" != "true" ]; then
+            echo "No go.mod found in repository root or argus/. Nothing to run."
+            exit 0
+          fi
           go install golang.org/x/vuln/cmd/govulncheck@latest
           go install github.com/securego/gosec/v2/cmd/gosec@latest
-
-      - name: Run govulncheck
-        if: ${{ steps.module-dir.outputs.has_module == 'true' }}
-        working-directory: ${{ steps.module-dir.outputs.dir }}
-        run: |
+          pushd "$MODULE_DIR"
           "$(go env GOPATH)/bin/govulncheck" ./...
-
-      - name: Run gosec (high severity, SARIF output)
-        if: ${{ steps.module-dir.outputs.has_module == 'true' }}
-        working-directory: ${{ steps.module-dir.outputs.dir }}
-        run: |
           "$(go env GOPATH)/bin/gosec" -severity high -fmt sarif -out "$GITHUB_WORKSPACE/gosec.sarif" ./...
+          popd
 
       - name: Upload SARIF report
         if: ${{ steps.module-dir.outputs.has_module == 'true' }}
