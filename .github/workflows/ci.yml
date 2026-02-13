@@ -57,27 +57,24 @@ jobs:
             echo "has_module=false" >> "$GITHUB_OUTPUT"
             echo "No go.mod found in repository root or argus/. Skipping Go checks."
           fi
-      - name: Install tool dependencies
-        if: ${{ steps.module-dir.outputs.has_module == 'true' }}
+      - name: Run Go checks
+        shell: bash
+        env:
+          HAS_MODULE: ${{ steps.module-dir.outputs.has_module }}
+          MODULE_DIR: ${{ steps.module-dir.outputs.dir }}
         run: |
+          if [ "$HAS_MODULE" != "true" ]; then
+            echo "No go.mod found in repository root or argus/. Nothing to run."
+            exit 0
+          fi
           sudo apt-get update
           sudo apt-get install -y ripgrep fd-find
           sudo ln -sf "$(command -v fdfind)" /usr/local/bin/fd
-
-      - name: Go vet
-        if: ${{ steps.module-dir.outputs.has_module == 'true' }}
-        working-directory: ${{ steps.module-dir.outputs.dir }}
-        run: go vet ./...
-
-      - name: Go build
-        if: ${{ steps.module-dir.outputs.has_module == 'true' }}
-        working-directory: ${{ steps.module-dir.outputs.dir }}
-        run: go build ./...
-
-      - name: Go test (race + coverage)
-        if: ${{ steps.module-dir.outputs.has_module == 'true' }}
-        working-directory: ${{ steps.module-dir.outputs.dir }}
-        run: go test ./... -race -covermode=atomic -coverprofile=coverage.out
+          pushd "$MODULE_DIR"
+          go vet ./...
+          go build ./...
+          go test ./... -race -covermode=atomic -coverprofile=coverage.out
+          popd
 
       - name: Upload coverage to Codecov (optional)
         env:
