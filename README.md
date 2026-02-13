@@ -1,7 +1,6 @@
 # Argus
 [![Go Version](https://img.shields.io/badge/go-1.22%2B-00ADD8?logo=go)](https://go.dev/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![CI](https://github.com/MeryylleA/argus-beta/actions/workflows/ci.yml/badge.svg)](https://github.com/MeryylleA/argus-beta/actions/workflows/ci.yml)
 
 Argus is a local-first, open-source security intelligence platform for bug bounty research. It runs on your machine, uses your own API keys, and keeps investigation context between sessions so agents can avoid repeating work.
 
