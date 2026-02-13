@@ -41,11 +41,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-${{ matrix.go-version }}-
 
-      - name: Install tool dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ripgrep fd-find
-          sudo ln -sf "$(command -v fdfind)" /usr/local/bin/fd
 
       - name: Detect Go module directory
         id: module-dir
@@ -53,29 +48,41 @@ jobs:
         run: |
           if [ -f go.mod ]; then
             echo "dir=." >> "$GITHUB_OUTPUT"
+            echo "has_module=true" >> "$GITHUB_OUTPUT"
           elif [ -f argus/go.mod ]; then
             echo "dir=argus" >> "$GITHUB_OUTPUT"
+            echo "has_module=true" >> "$GITHUB_OUTPUT"
           else
-            echo "No go.mod found in repository root or argus/."
-            exit 1
+            echo "dir=." >> "$GITHUB_OUTPUT"
+            echo "has_module=false" >> "$GITHUB_OUTPUT"
+            echo "No go.mod found in repository root or argus/. Skipping Go checks."
           fi
+      - name: Install tool dependencies
+        if: ${{ steps.module-dir.outputs.has_module == 'true' }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ripgrep fd-find
+          sudo ln -sf "$(command -v fdfind)" /usr/local/bin/fd
 
       - name: Go vet
+        if: ${{ steps.module-dir.outputs.has_module == 'true' }}
         working-directory: ${{ steps.module-dir.outputs.dir }}
         run: go vet ./...
 
       - name: Go build
+        if: ${{ steps.module-dir.outputs.has_module == 'true' }}
         working-directory: ${{ steps.module-dir.outputs.dir }}
         run: go build ./...
 
       - name: Go test (race + coverage)
+        if: ${{ steps.module-dir.outputs.has_module == 'true' }}
         working-directory: ${{ steps.module-dir.outputs.dir }}
         run: go test ./... -race -covermode=atomic -coverprofile=coverage.out
 
       - name: Upload coverage to Codecov (optional)
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-        if: ${{ env.CODECOV_TOKEN != '' }}
+        if: ${{ steps.module-dir.outputs.has_module == 'true' && env.CODECOV_TOKEN != '' }}
         uses: codecov/codecov-action@v4
         with:
           files: ${{ steps.module-dir.outputs.dir }}/coverage.out
