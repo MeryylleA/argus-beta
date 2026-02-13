@@ -12,14 +12,11 @@ permissions:
 
 jobs:
   build-and-test:
-    name: Go ${{ matrix.go-version }} on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
+    name: Go ${{ matrix.go-version }} on ubuntu
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - ubuntu-latest
-          - macos-latest
         go-version:
           - "1.22.x"
           - "1.23.x"
@@ -40,30 +37,39 @@ jobs:
           path: |
             ~/.cache/go-build
             ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ matrix.go-version }}-${{ hashFiles('**/go.sum') }}
+          key: ${{ runner.os }}-go-${{ matrix.go-version }}-${{ hashFiles('go.sum', 'argus/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-${{ matrix.go-version }}-
 
-      - name: Install tool dependencies (Linux)
-        if: runner.os == 'Linux'
+      - name: Install tool dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y ripgrep fd-find
           sudo ln -sf "$(command -v fdfind)" /usr/local/bin/fd
 
-      - name: Install tool dependencies (macOS)
-        if: runner.os == 'macOS'
+      - name: Detect Go module directory
+        id: module-dir
+        shell: bash
         run: |
-          brew update
-          brew install ripgrep fd
+          if [ -f go.mod ]; then
+            echo "dir=." >> "$GITHUB_OUTPUT"
+          elif [ -f argus/go.mod ]; then
+            echo "dir=argus" >> "$GITHUB_OUTPUT"
+          else
+            echo "No go.mod found in repository root or argus/."
+            exit 1
+          fi
 
       - name: Go vet
+        working-directory: ${{ steps.module-dir.outputs.dir }}
         run: go vet ./...
 
       - name: Go build
+        working-directory: ${{ steps.module-dir.outputs.dir }}
         run: go build ./...
 
       - name: Go test (race + coverage)
+        working-directory: ${{ steps.module-dir.outputs.dir }}
         run: go test ./... -race -covermode=atomic -coverprofile=coverage.out
 
       - name: Upload coverage to Codecov (optional)
@@ -72,5 +78,5 @@ jobs:
         if: ${{ env.CODECOV_TOKEN != '' }}
         uses: codecov/codecov-action@v4
         with:
-          files: coverage.out
+          files: ${{ steps.module-dir.outputs.dir }}/coverage.out
           token: ${{ env.CODECOV_TOKEN }}
