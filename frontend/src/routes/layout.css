@@ -1,0 +1,183 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap');
+@import 'tailwindcss';
+
+/* ── Argus Hacker Terminal Theme ── */
+
+@theme {
+    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, 'Cascadia Code', monospace;
+    --color-terminal-bg: #0a0a0a;
+    --color-terminal-surface: #111111;
+    --color-terminal-border: #1a1a1a;
+    --color-terminal-glow: #10b981;
+}
+
+/* ── Base Reset ── */
+
+*,
+*::before,
+*::after {
+    scrollbar-width: thin;
+    scrollbar-color: #262626 transparent;
+}
+
+::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #262626;
+    border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #404040;
+}
+
+body {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    background-color: #0a0a0a;
+    color: #d4d4d4;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Scanline overlay ── */
+
+.scanlines::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(0deg,
+            transparent,
+            transparent 2px,
+            rgba(0, 0, 0, 0.03) 2px,
+            rgba(0, 0, 0, 0.03) 4px);
+    pointer-events: none;
+    z-index: 50;
+}
+
+/* ── Glow effects ── */
+
+.glow-emerald {
+    text-shadow: 0 0 6px rgba(16, 185, 129, 0.4), 0 0 12px rgba(16, 185, 129, 0.15);
+}
+
+.glow-dot {
+    box-shadow: 0 0 6px rgba(16, 185, 129, 0.6), 0 0 12px rgba(16, 185, 129, 0.3);
+}
+
+/* ── Pulse animation for the status dot ── */
+
+@keyframes pulse-glow {
+
+    0%,
+    100% {
+        opacity: 1;
+        box-shadow: 0 0 6px rgba(16, 185, 129, 0.6);
+    }
+
+    50% {
+        opacity: 0.6;
+        box-shadow: 0 0 12px rgba(16, 185, 129, 0.9);
+    }
+}
+
+.animate-pulse-glow {
+    animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* ── Typing cursor blink ── */
+
+@keyframes blink {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0;
+    }
+}
+
+.cursor-blink::after {
+    content: '█';
+    animation: blink 1s step-end infinite;
+    color: #10b981;
+    margin-left: 2px;
+}
+
+/* ── Severity badge colors ── */
+
+.severity-critical {
+    background-color: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+    border-color: rgba(239, 68, 68, 0.3);
+}
+
+.severity-high {
+    background-color: rgba(249, 115, 22, 0.15);
+    color: #f97316;
+    border-color: rgba(249, 115, 22, 0.3);
+}
+
+.severity-medium {
+    background-color: rgba(234, 179, 8, 0.15);
+    color: #eab308;
+    border-color: rgba(234, 179, 8, 0.3);
+}
+
+.severity-low {
+    background-color: rgba(34, 197, 94, 0.15);
+    color: #22c55e;
+    border-color: rgba(34, 197, 94, 0.3);
+}
+
+.severity-info {
+    background-color: rgba(59, 130, 246, 0.15);
+    color: #3b82f6;
+    border-color: rgba(59, 130, 246, 0.3);
+}
+
+/* ── Fade-in for new events ── */
+
+@keyframes fade-in-up {
+    from {
+        opacity: 0;
+        transform: translateY(4px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-fade-in {
+    animation: fade-in-up 0.2s ease-out;
+}
+
+/* ── Slide-down for expandable tool blocks ── */
+
+@keyframes slide-down {
+    from {
+        opacity: 0;
+        transform: translateY(-4px);
+        max-height: 0;
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+        max-height: 20rem;
+    }
+}
+
+.animate-slide-down {
+    animation: slide-down 0.2s ease-out;
+}
