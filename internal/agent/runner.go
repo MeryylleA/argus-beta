@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/argus-sec/argus/internal/llm"
+	"github.com/argus-sec/argus/internal/logger"
 	"github.com/argus-sec/argus/internal/sse"
 )
 
@@ -38,6 +39,8 @@ func (r *Runner) Run(ctx context.Context, sessionID string, agentRole string) er
 		"agent_role": agentRole,
 		"model":      r.provider.ModelID(),
 	})
+
+	logger.Info("Starting new %s session (ID: %s)", agentRole, sessionID)
 
 	// Initialize persistent scratchpad (Infinite Memory whiteboard).
 	scratchpad := ""
@@ -70,6 +73,7 @@ func (r *Runner) Run(ctx context.Context, sessionID string, agentRole string) er
 		// prompt) and the last 10 messages (most recent context), discarding
 		// everything in between to prevent context window overflow.
 		if len(messages) > 30 {
+			originalLen := len(messages)
 			tail := 10
 			if tail > len(messages)-1 {
 				tail = len(messages) - 1
@@ -78,6 +82,7 @@ func (r *Runner) Run(ctx context.Context, sessionID string, agentRole string) er
 			compacted = append(compacted, messages[0])
 			compacted = append(compacted, messages[len(messages)-tail:]...)
 			messages = compacted
+			logger.Memory("Context compacted: removed %d old messages to prevent overflow", (originalLen - len(messages)))
 		}
 
 		r.publishEvent(sessionID, "thinking", map[string]string{
@@ -329,6 +334,7 @@ func (r *Runner) executeTool(sessionID string, tc toolCall, scratchpad *string) 
 			return "", fmt.Errorf("update_memory: 'content' parameter is required")
 		}
 		*scratchpad += "\n" + content
+		logger.Memory("Whiteboard updated. Total scratchpad size: %d bytes", len(*scratchpad))
 		return "Memory updated successfully.", nil
 
 	default:
