@@ -39,6 +39,9 @@ func (r *Runner) Run(ctx context.Context, sessionID string, agentRole string) er
 		"model":      r.provider.ModelID(),
 	})
 
+	// Initialize persistent scratchpad (Infinite Memory whiteboard).
+	scratchpad := ""
+
 	// Initial user message to kick off the agent.
 	messages := []llm.Message{
 		{
@@ -47,7 +50,7 @@ func (r *Runner) Run(ctx context.Context, sessionID string, agentRole string) er
 		},
 	}
 
-	systemPrompt := r.buildSystemPrompt(agentRole)
+	baseSystemPrompt := r.buildSystemPrompt(agentRole)
 	tools := r.getToolDefinitions()
 
 	// Main agent loop: iterate until done, error, or context cancellation.
@@ -62,9 +65,32 @@ func (r *Runner) Run(ctx context.Context, sessionID string, agentRole string) er
 		default:
 		}
 
+		// --- Context Compaction (The Janitor) ---
+		// When the conversation grows too long, keep the first message (initial
+		// prompt) and the last 10 messages (most recent context), discarding
+		// everything in between to prevent context window overflow.
+		if len(messages) > 30 {
+			tail := 10
+			if tail > len(messages)-1 {
+				tail = len(messages) - 1
+			}
+			compacted := make([]llm.Message, 0, 1+tail)
+			compacted = append(compacted, messages[0])
+			compacted = append(compacted, messages[len(messages)-tail:]...)
+			messages = compacted
+		}
+
 		r.publishEvent(sessionID, "thinking", map[string]string{
 			"iteration": fmt.Sprintf("%d", i+1),
 		})
+
+		// --- Inject Whiteboard into System Prompt ---
+		// Build a per-iteration system prompt that always includes the latest
+		// scratchpad contents so the LLM never loses persistent memory.
+		systemPrompt := baseSystemPrompt
+		if scratchpad != "" {
+			systemPrompt += "\n\n=== SHARED WHITEBOARD (PERSISTENT MEMORY) ===\n" + scratchpad + "\n===============================================\n"
+		}
 
 		// Stream LLM response.
 		streamCh, err := r.provider.StreamChat(ctx, systemPrompt, messages, tools)
@@ -163,7 +189,7 @@ func (r *Runner) Run(ctx context.Context, sessionID string, agentRole string) er
 
 		// Execute tool calls within the sandbox.
 		for _, tc := range toolCalls {
-			result, err := r.executeTool(sessionID, tc)
+			result, err := r.executeTool(sessionID, tc, &scratchpad)
 			if err != nil {
 				r.publishEvent(sessionID, "tool_error", map[string]string{
 					"tool":  tc.Name,
@@ -210,7 +236,7 @@ type toolCall struct {
 }
 
 // executeTool dispatches a tool call to the appropriate sandboxed handler.
-func (r *Runner) executeTool(sessionID string, tc toolCall) (string, error) {
+func (r *Runner) executeTool(sessionID string, tc toolCall, scratchpad *string) (string, error) {
 	var params map[string]any
 	if tc.Input != "" {
 		if err := json.Unmarshal([]byte(tc.Input), &params); err != nil {
@@ -296,6 +322,14 @@ func (r *Runner) executeTool(sessionID string, tc toolCall) (string, error) {
 			"attack_chain": attackChain,
 		})
 		return "Summary successfully submitted.", nil
+
+	case "update_memory":
+		content, _ := params["content"].(string)
+		if content == "" {
+			return "", fmt.Errorf("update_memory: 'content' parameter is required")
+		}
+		*scratchpad += "\n" + content
+		return "Memory updated successfully.", nil
 
 	default:
 		return "", fmt.Errorf("unknown tool: %s", tc.Name)
@@ -432,6 +466,16 @@ func (r *Runner) getToolDefinitions() []llm.ToolParam {
 				"attack_chain": map[string]any{
 					"type":        "string",
 					"description": "A step-by-step hypothetical scenario showing how an attacker could chain these findings together.",
+				},
+			},
+		},
+		{
+			Name:        "update_memory",
+			Description: "Update your persistent shared whiteboard. Use this to save important discoveries, file paths, or state that you need to remember across a long session. Writing here prevents you from forgetting things when the conversation history gets truncated.",
+			Parameters: map[string]any{
+				"content": map[string]any{
+					"type":        "string",
+					"description": "The text to add or update on the whiteboard.",
 				},
 			},
 		},
