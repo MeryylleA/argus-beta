@@ -70,19 +70,38 @@ func (r *Runner) Run(ctx context.Context, sessionID string, agentRole string) er
 
 		// --- Context Compaction (The Janitor) ---
 		// When the conversation grows too long, keep the first message (initial
-		// prompt) and the last 10 messages (most recent context), discarding
+		// prompt) and the last ~10 messages (most recent context), discarding
 		// everything in between to prevent context window overflow.
+		//
+		// Role-Aware: models like Qwen, Llama, and Minimax require strict
+		// User→Assistant alternation. Since messages[0] is RoleUser, we walk
+		// forward from the desired tail start until we find a RoleAssistant
+		// message so the splice is always User + Assistant + … (valid).
 		if len(messages) > 30 {
 			originalLen := len(messages)
-			tail := 10
-			if tail > len(messages)-1 {
-				tail = len(messages) - 1
+			desiredTail := 10
+			if desiredTail > len(messages)-1 {
+				desiredTail = len(messages) - 1
 			}
-			compacted := make([]llm.Message, 0, 1+tail)
-			compacted = append(compacted, messages[0])
-			compacted = append(compacted, messages[len(messages)-tail:]...)
-			messages = compacted
-			logger.Memory("Context compacted: removed %d old messages to prevent overflow", (originalLen - len(messages)))
+
+			// Walk forward from the desired start until we hit an Assistant message.
+			tailStart := len(messages) - desiredTail
+			for tailStart < len(messages) && messages[tailStart].Role != llm.RoleAssistant {
+				tailStart++
+			}
+
+			// Safety: if no Assistant message exists in the tail, skip compaction
+			// this iteration rather than producing an invalid message sequence.
+			if tailStart >= len(messages) {
+				logger.Memory("Context compaction skipped: no assistant message found in tail")
+			} else {
+				compacted := make([]llm.Message, 0, 1+len(messages)-tailStart)
+				compacted = append(compacted, messages[0])
+				compacted = append(compacted, messages[tailStart:]...)
+				deletedCount := originalLen - len(compacted)
+				messages = compacted
+				logger.Memory("Context compacted: removed %d old messages to prevent overflow", deletedCount)
+			}
 		}
 
 		r.publishEvent(sessionID, "thinking", map[string]string{
