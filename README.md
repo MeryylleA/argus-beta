@@ -86,7 +86,7 @@ For a deep-dive into every module, data flow, and design decision, see the **[fu
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/argus-sec/argus.git
+git clone https://github.com/argus-beta/argus.git
 cd argus
 ```
 
