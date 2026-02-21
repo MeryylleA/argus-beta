@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 )
@@ -179,8 +180,16 @@ func (p *OllamaProvider) StreamChat(ctx context.Context, systemPrompt string, me
 	}
 
 	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		resp.Body.Close()
-		return nil, fmt.Errorf("ollama: unexpected status %d from %s", resp.StatusCode, endpoint)
+		// Parse Ollama's JSON error response for a cleaner message.
+		var errResp struct {
+			Error string `json:"error"`
+		}
+		if json.Unmarshal(body, &errResp) == nil && errResp.Error != "" {
+			return nil, fmt.Errorf("ollama: %s (HTTP %d)", errResp.Error, resp.StatusCode)
+		}
+		return nil, fmt.Errorf("ollama: unexpected status %d from %s: %s", resp.StatusCode, endpoint, string(body))
 	}
 
 	ch := make(chan StreamEvent, 64)

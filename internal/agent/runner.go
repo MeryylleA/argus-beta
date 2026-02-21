@@ -45,6 +45,20 @@ func (r *Runner) Run(ctx context.Context, sessionID string, agentRole string) er
 	// Initialize persistent scratchpad (Infinite Memory whiteboard).
 	scratchpad := ""
 
+	// --- Cartographer: deterministic pre-scan ---
+	// Run the Cartographer to build an instant architecture summary of the
+	// target workspace. This is injected into the Whiteboard *before* the
+	// first LLM call so the model starts with full project topology context,
+	// saving iterations and context window budget.
+	carto := NewCartographer(r.sandbox)
+	if archSummary := carto.Survey(); archSummary != "" {
+		scratchpad = archSummary
+		logger.Memory("Cartographer summary pre-loaded into Whiteboard (%d bytes)", len(scratchpad))
+		r.publishEvent(sessionID, "cartographer_done", map[string]string{
+			"summary_length": fmt.Sprintf("%d", len(scratchpad)),
+		})
+	}
+
 	// Initial user message to kick off the agent.
 	messages := []llm.Message{
 		{
